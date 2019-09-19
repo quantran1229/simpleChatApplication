@@ -1,0 +1,194 @@
+<!doctype html>
+<html>
+
+<head>
+  <title>Socket.IO chat</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font: 13px Helvetica, Arial;
+    }
+
+    form {
+      background: #000;
+      padding: 3px;
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+    }
+
+    form input {
+      border: 0;
+      padding: 10px;
+      width: 90%;
+      margin-right: .5%;
+    }
+
+    form button {
+      width: 9%;
+      background: rgb(130, 224, 255);
+      border: none;
+      padding: 10px;
+    }
+
+    #messages {
+      list-style-type: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    #messages li {
+      padding: 5px 10px;
+    }
+
+    #messages li:nth-child(odd) {
+      background: #eee;
+    }
+
+    #message_box {
+      overflow: auto;
+    }
+
+    #typing_box {
+      background:black;
+      padding: 10px;
+      position: fixed;
+      bottom: 50px;
+      right: 0;
+      width: 50%;
+      border-style: solid;
+      border-width: 2px;
+      border-color: black;
+      border-radius: 20px;
+      color:white
+    }
+    #onlineUser {
+      position: fixed;
+      padding:5px;
+      height:100px;
+      width:300px;
+      top:0;
+      right:0;
+      border-style: solid;
+      border-color: black;
+      border-radius: 20px;
+      overflow: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div>
+    YOUR NAME IS <b id="name"></b> <img id="image" height="100" width="100">
+  </div>
+  <div id="onlineUser">Online User
+    <ul id="online"></ul>
+  </div>
+  <div id="message_box">
+    <ul id="messages"></ul>
+  </div>
+  <div id="typing_box" hidden>
+  </div>
+  <form action="">
+    <input id="m" autocomplete="off" /><button>Send</button>
+  </form>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+  <script>
+    var username = "";
+    var color = "";
+    var typing = false;
+    $(function () {
+      var socket = io();
+      $('#m').on('input', (e) => {
+        e.preventDefault(); // prevents page reloading
+        if ($('#m').val())
+          if ($('#m').val().substring(0,8) == "@private") typing = false
+           else typing = true
+        else typing = false
+        socket.emit('typing', {
+          username: username,
+          typing: typing
+        })
+      });
+      $('form').submit(function (e) {
+        e.preventDefault(); // prevents page reloading
+        socket.emit('chat message', {
+          msg: $('#m').val(),
+          user: username,
+          color: color
+        });
+        $('#m').val('');
+        typing = false
+        return false;
+      });
+      socket.on('chat message', function (data) {
+        let msg = data.msg;
+        let user = data.user;
+        let msg_color = data.color
+        let time = data.time;
+        msg = time + ' <b style="color:' + msg_color + '">' + user + '</b>: ' + msg
+        $('#messages').append($('<li>').html(msg));
+      });
+
+      socket.on('message', function (msg) {
+        $('#messages').append($('<li>').text(msg));
+      });
+
+      socket.on('system', (data => {
+        let time = data.time
+        msg = time + " <b style='color:red'>System:</b> <b>" + data.msg + "</b>"
+        $('#messages').append($('<li>').html(msg));
+      }))
+
+      socket.on('userinfo', (data) => {
+        username = data.username
+        color = data.color
+        $('#name').html(data.username).attr("style", "color:" + color);
+        $("#image").attr("src", data.image);
+      })
+
+      socket.on('connect_failed', function () {
+        document.write("Sorry, there seems to be an issue with the connection!");
+      })
+
+      socket.on('typing', data => {
+        if (typing) data--;
+        if (data == 0) $('#typing_box').hide();
+          else {
+            $('#typing_box').show();
+            if (data == 1)
+              $('#typing_box').html("A person is typing..");
+              else
+              $('#typing_box').html(data+" people are typing..");
+          }
+      })
+
+      socket.on('private', (data) => {
+        let msg = data.msg;
+        let user;
+        if (data.toUser)
+          user = "[To "+data.toUser+"]";
+        else user = "[From " + data.user + "]"
+        let msg_color = data.color
+        let time = data.time;
+        msg = time + ' <b>' + user + '</b>: ' + msg
+        $('#messages').append($('<li style="color:blue">').html(msg));
+      })
+
+      socket.on('onlineUser',(data) => {
+        $('#online').html("");
+        data.forEach(entry=>{
+          $('#online').append($('<li>').text(entry.username));
+        })
+      })
+    });
+  </script>
+</body>
+
+</html>
